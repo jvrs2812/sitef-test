@@ -75,6 +75,7 @@
         "build.zig.zon",
         "CliSiTef32I.def",
         "config.ini",
+        "README.md",
         "src",
         // For example...
         //"LICENSE",
