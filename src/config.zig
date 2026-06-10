@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const Config = struct {
     allocator: std.mem.Allocator,
@@ -26,8 +27,14 @@ pub const Config = struct {
     }
 };
 
-pub fn loadConfig(path: []const u8) !Config {
-    const allocator = std.heap.page_allocator;
+fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    return switch (builtin.os.tag) {
+        .windows => readFileAllocWindows(allocator, path),
+        else => readFileAllocPosix(allocator, path),
+    };
+}
+
+fn readFileAllocPosix(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     const fd = try std.posix.openat(std.posix.AT.FDCWD, path, .{}, 0);
     defer std.Io.Threaded.closeFd(fd);
 
@@ -48,7 +55,83 @@ pub fn loadConfig(path: []const u8) !Config {
         size += bytes_read;
     }
 
-    content = try allocator.realloc(content, size);
+    return try allocator.realloc(content, size);
+}
+
+fn readFileAllocWindows(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    const windows = std.os.windows;
+    const DWORD = windows.DWORD;
+    const BOOL = windows.BOOL;
+    const HANDLE = windows.HANDLE;
+
+    const GENERIC_READ: DWORD = 0x80000000;
+    const FILE_SHARE_READ: DWORD = 0x00000001;
+    const OPEN_EXISTING: DWORD = 3;
+    const FILE_ATTRIBUTE_NORMAL: DWORD = 0x00000080;
+    const INVALID_FILE_SIZE: DWORD = 0xffffffff;
+
+    const kernel32 = struct {
+        extern "kernel32" fn CreateFileA(
+            lpFileName: [*:0]const u8,
+            dwDesiredAccess: DWORD,
+            dwShareMode: DWORD,
+            lpSecurityAttributes: ?*anyopaque,
+            dwCreationDisposition: DWORD,
+            dwFlagsAndAttributes: DWORD,
+            hTemplateFile: ?HANDLE,
+        ) callconv(.winapi) HANDLE;
+
+        extern "kernel32" fn GetFileSize(
+            hFile: HANDLE,
+            lpFileSizeHigh: ?*DWORD,
+        ) callconv(.winapi) DWORD;
+
+        extern "kernel32" fn ReadFile(
+            hFile: HANDLE,
+            lpBuffer: [*]u8,
+            nNumberOfBytesToRead: DWORD,
+            lpNumberOfBytesRead: *DWORD,
+            lpOverlapped: ?*anyopaque,
+        ) callconv(.winapi) BOOL;
+
+        extern "kernel32" fn CloseHandle(hObject: HANDLE) callconv(.winapi) BOOL;
+    };
+
+    const path_z = try allocator.dupeZ(u8, path);
+    defer allocator.free(path_z);
+
+    const file = kernel32.CreateFileA(
+        path_z.ptr,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        null,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        null,
+    );
+    if (file == windows.INVALID_HANDLE_VALUE) return error.FileNotFound;
+    defer _ = kernel32.CloseHandle(file);
+
+    var file_size_high: DWORD = 0;
+    const file_size_low = kernel32.GetFileSize(file, &file_size_high);
+    if (file_size_low == INVALID_FILE_SIZE or file_size_high != 0) return error.FileTooBig;
+    if (file_size_low > 1024 * 1024) return error.FileTooBig;
+
+    const content = try allocator.alloc(u8, @intCast(file_size_low));
+    errdefer allocator.free(content);
+
+    var bytes_read: DWORD = 0;
+    if (!kernel32.ReadFile(file, content.ptr, file_size_low, &bytes_read, null).toBool()) {
+        return error.ReadFailed;
+    }
+
+    return try allocator.realloc(content, @intCast(bytes_read));
+}
+
+pub fn loadConfig(path: []const u8) !Config {
+    const allocator = std.heap.page_allocator;
+    const content = try readFileAlloc(allocator, path);
+    errdefer allocator.free(content);
 
     var result = Config{
         .allocator = allocator,

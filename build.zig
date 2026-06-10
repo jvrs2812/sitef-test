@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     const os_tag = target.result.os.tag;
 
     const lib_name = if (os_tag == .windows)
-        "clisitef"
+        "CliSiTef32I"
     else if (os_tag == .linux)
         "libclisitef"
     else
@@ -24,6 +24,7 @@ pub fn build(b: *std.Build) void {
         .name = lib_name,
         .linkage = .dynamic,
         .version = version,
+        .win32_module_definition = if (os_tag == .windows) b.path("CliSiTef32I.def") else null,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/export.zig"),
             .target = target,

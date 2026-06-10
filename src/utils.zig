@@ -74,3 +74,9 @@ pub fn getContinuidadeStep(config_ini: anytype, step_number: usize) ?Continuidad
         .buffer = buffer,
     };
 }
+
+pub fn writeVersionBuffer(buffer: [*:0]u8, version: []const u8) void {
+    @memset(buffer[0..5], ' ');
+    const bytes_to_write = @min(version.len, 5);
+    @memcpy(buffer[0..bytes_to_write], version[0..bytes_to_write]);
+}
