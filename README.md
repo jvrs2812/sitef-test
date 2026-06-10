@@ -233,4 +233,4 @@ No Windows 32 bits, o binário também exporta aliases sem decoração para faci
 
 ## Licença e Uso
 
-Este projeto deve ser usado como ferramenta interna de desenvolvimento, testes e homologação. Antes de distribuir publicamente ou usar em ambientes de terceiros, revise as políticas de licenciamento e nomenclatura relacionadas à integração oficial CliSiTef/SiTef.
+Este projeto deve ser usado como ferramenta interna de desenvolvimento, testes e homologação. Antes de distribuir publicamente ou usar em ambientes de terceiros, revise as políticas de licenciamento e nomenclatura relacionadas à integração oficial CliSiTef/SiTef. Em hipotese alguma use em Produção
