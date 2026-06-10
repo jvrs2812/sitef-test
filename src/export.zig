@@ -1,5 +1,8 @@
 const std = @import("std");
-const config = @import("config");
+const config = @import("config.zig");
+const utils = @import("utils.zig");
+
+var continuidade_step: usize = 1;
 
 export fn ConfiguraIntSitefInterativo(
     IPSiTef: [*:0]const u8,
@@ -12,12 +15,13 @@ export fn ConfiguraIntSitefInterativo(
     std.debug.print("ID do Terminal: {s}\n", .{IdTerminal});
     std.debug.print("Reservado: {s}\n", .{Reservado});
 
-    const configIni = config.loadConfig("config.ini") catch |err| {
-        std.debug.print("Erro ao carregar configuração: {s}\n", .{err});
+    var configIni = config.loadConfig("config.ini") catch |err| {
+        std.debug.print("Erro ao carregar configuração: {t}\n", .{err});
         return -1;
     };
+    defer configIni.deinit();
 
-    const retorno = configIni.get("RETORNOS", "ConfiguraIntSitefInterativo") orelse 0;
+    const retorno = configIni.getInt("RETORNOS", "ConfiguraIntSitefInterativo") orelse 0;
 
     return retorno;
 }
@@ -35,12 +39,15 @@ export fn ConfiguraIntSitefInterativoEx(
     std.debug.print("Reservado: {s}\n", .{Reservado});
     std.debug.print("Parâmetros Adicionais: {s}\n", .{ParametrosAdicionais});
 
-    const configIni = config.loadConfig("config.ini") catch |err| {
-        std.debug.print("Erro ao carregar configuração: {s}\n", .{err});
+    continuidade_step = 1;
+
+    var configIni = config.loadConfig("config.ini") catch |err| {
+        std.debug.print("Erro ao carregar configuração: {t}\n", .{err});
         return -1;
     };
+    defer configIni.deinit();
 
-    const retorno = configIni.get("RETORNOS", "ConfiguraIntSitefInterativoEx") orelse 0;
+    const retorno = configIni.getInt("RETORNOS", "ConfiguraIntSitefInterativoEx") orelse 0;
 
     return retorno;
 }
@@ -63,12 +70,13 @@ export fn IniciaFuncaoSiTefInterativo(
     std.debug.print("Operador: {s}\n", .{Operador});
     std.debug.print("Parâmetros Adicionais: {s}\n", .{ParametrosAdicionais});
 
-    const configIni = config.loadConfig("config.ini") catch |err| {
-        std.debug.print("Erro ao carregar configuração: {s}\n", .{err});
+    var configIni = config.loadConfig("config.ini") catch |err| {
+        std.debug.print("Erro ao carregar configuração: {t}\n", .{err});
         return -1;
     };
+    defer configIni.deinit();
 
-    const retorno = configIni.get("RETORNOS", "IniciaFuncaoSiTefInterativo") orelse 0;
+    const retorno = configIni.getInt("RETORNOS", "IniciaFuncaoSiTefInterativo") orelse 0;
 
     return retorno;
 }
@@ -92,12 +100,16 @@ export fn IniciaFuncaoAASiTefInterativo(
     std.debug.print("Operador: {s}\n", .{Operador});
     std.debug.print("Parâmetros Adicionais: {s}\n", .{ParametrosAdicionais});
     std.debug.print("Produtos: {s}\n", .{Produtos});
-    const configIni = config.loadConfig("config.ini") catch |err| {
-        std.debug.print("Erro ao carregar configuração: {s}\n", .{err});
+
+    continuidade_step = 1;
+
+    var configIni = config.loadConfig("config.ini") catch |err| {
+        std.debug.print("Erro ao carregar configuração: {t}\n", .{err});
         return -1;
     };
+    defer configIni.deinit();
 
-    const retorno = configIni.get("RETORNOS", "IniciaFuncaoAASiTefInterativo") orelse 0;
+    const retorno = configIni.getInt("RETORNOS", "IniciaFuncaoAASiTefInterativo") orelse 0;
 
     return retorno;
 }
@@ -146,19 +158,47 @@ export fn ContinuaFuncaoSiTefInterativo(
     std.debug.print("Tamanho Máximo: {d}\n", .{TamanhoMaximo.*});
     std.debug.print("Tamanho do Buffer: {d}\n", .{TamMaxBuffer});
     std.debug.print("Continua: {d}\n", .{Continua});
-    std.debug.print("Buffer antes de escrever: {s}\n", .{pBuffer[0..TamMaxBuffer]});
+    const buffer_len: usize = if (TamMaxBuffer > 0) @intCast(TamMaxBuffer) else 0;
+    std.debug.print("Buffer antes de escrever: {s}\n", .{pBuffer[0..buffer_len]});
 
-    const configIni = config.loadConfig("config.ini") catch |err| {
-        std.debug.print("Erro ao carregar configuração: {s}\n", .{err});
+    if (Continua != 0) {
+        std.debug.print("Não há continuidade necessária.\n", .{});
+        return 0;
+    }
+
+    var configIni = config.loadConfig("config.ini") catch |err| {
+        std.debug.print("Erro ao carregar configuração: {t}\n", .{err});
         return -1;
     };
+    defer configIni.deinit();
 
-    const retorno = configIni.get("CONTINUIDADES", "ContinuaFuncaoSiTefInterativo") orelse 0;
+    const retorno = configIni.getInt("CONTINUIDADES", "ContinuaFuncaoSiTefInterativo") orelse 0;
 
     if (retorno == 10000) {
-        const response = "Resposta Simulada";
-        const bytesToWrite = std.math.min(response.len, TamMaxBuffer);
-        std.mem.copy(u8, pBuffer, response[0..bytesToWrite]);
+        if (utils.getContinuidadeStep(configIni, continuidade_step)) |step| {
+            ProximoComando.* = step.comando;
+            TipoCampo.* = step.tipo_campo;
+            TamanhoMinimo.* = step.tamanho_minimo;
+            TamanhoMaximo.* = step.tamanho_maximo;
+            utils.copyCStringToBuffer(pBuffer, TamMaxBuffer, step.buffer);
+
+            std.debug.print(
+                "Passo continuidade {d}: comando={d} tipo={d} buffer={s}\n",
+                .{ continuidade_step, step.comando, step.tipo_campo, step.buffer },
+            );
+
+            continuidade_step += 1;
+            return step.retorno;
+        }
+
+        if (utils.hasContinuidadeSteps(configIni)) {
+            continuidade_step = 1;
+            return configIni.getInt("CONTINUIDADE_PASSOS", "Final") orelse 0;
+        }
+
+        const response = utils.getContinuidadeBuffer(configIni, ProximoComando.*, TipoCampo.*) orelse "";
+        utils.copyCStringToBuffer(pBuffer, TamMaxBuffer, response);
+        std.debug.print("Buffer preenchido: {s}\n", .{response});
     }
 
     return retorno;
