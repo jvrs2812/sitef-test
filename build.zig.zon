@@ -73,6 +73,8 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
+        "CliSiTef32I.def",
+        "config.ini",
         "src",
         // For example...
         //"LICENSE",

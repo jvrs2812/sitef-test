@@ -1,0 +1,18 @@
+LIBRARY CliSiTef32I
+EXPORTS
+    ConfiguraIntSiTefInterativo=ConfiguraIntSiTefInterativo@16
+    ConfiguraIntSiTefInterativoEx=ConfiguraIntSiTefInterativoEx@20
+    ContinuaFuncaoSiTefInterativo=ContinuaFuncaoSiTefInterativo@28
+    EscreveMensagemPermanentePinPad=EscreveMensagemPermanentePinPad@4
+    FinalizaFuncaoSiTefInterativo=FinalizaFuncaoSiTefInterativo@20
+    FinalizaTransacaoSiTefInterativo=FinalizaTransacaoSiTefInterativo@16
+    IniciaFuncaoAASiTefInterativo=IniciaFuncaoAASiTefInterativo@32
+    IniciaFuncaoSiTefInterativo=IniciaFuncaoSiTefInterativo@28
+    LeCartaoDireto=LeCartaoDireto@12
+    LeCartaoDiretoSeguro=LeCartaoDiretoSeguro@28
+    LeSimNaoPinPad=LeSimNaoPinPad@4
+    ObtemDadoPinPadDiretoEx=ObtemDadoPinPadDiretoEx@16
+    ObtemDadoPinPadEx=ObtemDadoPinPadEx@12
+    ObtemQuantidadeTransacoesPendentes=ObtemQuantidadeTransacoesPendentes@8
+    ObtemVersao=ObtemVersao@8
+    VerificaPresencaPinPad=VerificaPresencaPinPad@0

@@ -1,0 +1,124 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+      - "[0-9]*"
+  pull_request:
+
+permissions:
+  contents: write
+
+env:
+  ZIG_VERSION: 0.16.0
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64-gnu
+            target: x86_64-linux-gnu
+            archive_ext: tar.gz
+          - name: linux-x86-gnu
+            target: x86-linux-gnu
+            archive_ext: tar.gz
+          - name: linux-x86_64-musl
+            target: x86_64-linux-musl
+            archive_ext: tar.gz
+          - name: linux-x86-musl
+            target: x86-linux-musl
+            archive_ext: tar.gz
+          - name: windows-x86
+            target: x86-windows
+            archive_ext: zip
+          - name: windows-x86_64
+            target: x86_64-windows
+            archive_ext: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build
+        run: zig build -Dtarget=${{ matrix.target }} -Dversion=${{ steps.version.outputs.version }} -Doptimize=ReleaseSmall
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE="sitef-test-${VERSION}-${{ matrix.name }}"
+          mkdir -p "dist/${PACKAGE}"
+
+          cp config.ini "dist/${PACKAGE}/"
+
+          if [[ "${{ matrix.target }}" == *windows* ]]; then
+            cp zig-out/bin/*.dll "dist/${PACKAGE}/"
+            cp zig-out/lib/*.lib "dist/${PACKAGE}/"
+            (cd dist && zip -r "${PACKAGE}.zip" "${PACKAGE}")
+          else
+            cp zig-out/lib/*.so* "dist/${PACKAGE}/"
+            tar -C dist -czf "dist/${PACKAGE}.tar.gz" "${PACKAGE}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sitef-test-${{ steps.version.outputs.version }}-${{ matrix.name }}
+          path: dist/*.${{ matrix.archive_ext }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" release-artifacts/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" release-artifacts/* \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Builds gerados automaticamente para Linux e Windows 32/64."
+          fi
